@@ -23,7 +23,7 @@ runs:
     - name: Check out the repository
       uses: actions/checkout@v2
 
-    - name: Check workflow status
+    - name: Check workflow status and create comment
       id: check-status
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
       with:
@@ -35,39 +35,69 @@ runs:
           const statuses = [];
           let failed = false;
 
-          // Fetch all workflows
-          const workflows = await github.rest.actions.listRepoWorkflows({
+          // List all open pull requests
+          const pulls = await github.rest.pulls.list({
             owner,
-            repo
+            repo,
+            state: 'open'
           });
 
-          // Match workflows by name and get their IDs
-          const workflowIds = workflowNames.map(name => {
-            const workflow = workflows.data.workflows.find(w => w.name === name);
-            if (workflow) {
-              return { id: workflow.id, name: workflow.name };
-            } else {
-              statuses.push(`${name}: Not found`);
-              return null;
-            }
-          }).filter(Boolean);
+          for (const pull of pulls.data) {
+            const prNumber = pull.number;
+            const prTitle = pull.title;
+            const prCreator = pull.user.login;
+            const prUrl = pull.html_url;
+            const prStatuses = [];
+            let prFailed = false;
 
-          // Check the status of matched workflows
-          for (const { id, name } of workflowIds) {
-            const runs = await github.rest.actions.listWorkflowRuns({
+            // Fetch all workflows
+            const workflows = await github.rest.actions.listRepoWorkflows({
+              owner,
+              repo
+            });
+
+            // Match workflows by name and get their IDs
+            const workflowIds = workflowNames.map(name => {
+              const workflow = workflows.data.workflows.find(workflow => workflow.name === name);
+              if (workflow) {
+                return { id: workflow.id, name: workflow.name };
+              } else {
+                prStatuses.push(`${name}: Not found`);
+                return null;
+              }
+            }).filter(Boolean);
+
+            // Check the status of matched workflows for the pull request
+            for (const { id, name } of workflowIds) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: id,
+                event: 'pull_request',
+                per_page: 1
+              });
+              const status = runs.data.workflow_runs.length > 0 ? runs.data.workflow_runs[0].conclusion : 'No runs found';
+              prStatuses.push(`${name}: ${status}`);
+              if (status !== 'success') {
+                prFailed = true;
+              }
+            }
+
+            // Add a comment to the pull request with the status of the workflows
+            await github.rest.issues.createComment({
               owner,
               repo,
-              workflow_id: id,
-              per_page: 1
+              issue_number: prNumber,
+              body: `## Workflow statuses for PR #${prNumber} - ${prTitle} by ${prCreator}:\n${prStatuses.join('\n')}\nPR URL: ${prUrl}`
             });
-            const status = runs.data.workflow_runs.length > 0 ? runs.data.workflow_runs[0].conclusion : 'No runs found';
-            statuses.push(`${name}: ${status}`);
-            if (status !== 'success') {
+
+            if (prFailed) {
               failed = true;
             }
+            statuses.push(`PR #${prNumber}: ${prFailed ? 'Failed' : 'Success'}`);
           }
 
-          core.exportVariable('STATUSES', statuses.join('\n'));
+          core.exportVariable('STATUSES', JSON.stringify(statuses));
           core.exportVariable('FAILED', failed);
 
     - name: Create comment with workflow status
