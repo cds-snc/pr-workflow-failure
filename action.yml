@@ -1,5 +1,5 @@
 name: PR Workflow Failure
-description: "Check the status of specified workflows on PRs and comment the status. Optionally send a Slack notification."
+description: "Check the status of specified workflows on PRs and creates a comment with the status. Optionally send a Slack notification."
 
 inputs:
   workflows:
