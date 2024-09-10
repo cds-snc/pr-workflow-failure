@@ -5,7 +5,7 @@ inputs:
   workflows:
     description: "List of workflows names to check"
     required: true
-    default: "[]"
+    default: '[]'
   slack_webhook:
     description: "Slack webhook URL"
     required: false
@@ -13,6 +13,9 @@ inputs:
     description: "Slack message body with placeholders for statuses, pr_title, repo_name, pr_creator, pr_url"
     required: false
     default: 'Workflow statuses:\n$STATUSES\nPR Details:\n<$PR_URL|PR> - $PR_TITLE by $PR_CREATOR in $REPO_NAME.\n$PR_URL'
+  github_token:
+    description: "GitHub token"
+    required: true
 
 runs:
   using: "composite"
@@ -55,9 +58,9 @@ runs:
 
     - name: Create comment with workflow status
       if: ${{ steps.check-status.outputs.failed == 'true' }}
-      uses: actions/github-script@v4
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ inputs.GITHUB_TOKEN }}
         script: |
           const statuses = `\${{ steps.check-status.outputs.statuses }}`;
           github.rest.issues.createComment({
