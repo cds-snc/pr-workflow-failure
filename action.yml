@@ -25,8 +25,9 @@ runs:
 
     - name: Check workflow status
       id: check-status
-      uses: actions/github-script@v4
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
       with:
+        github-token: ${{ inputs.github_token }}
         script: |
           const workflowNames = JSON.parse('${{ inputs.workflows }}');
           const repo = context.repo.repo;
@@ -68,8 +69,6 @@ runs:
 
           core.exportVariable('STATUSES', statuses.join('\n'));
           core.exportVariable('FAILED', failed);
-        env:
-          GITHUB_TOKEN: ${{ inputs.github_token }}
 
     - name: Create comment with workflow status
       if: ${{ env.FAILED == 'true' }}
