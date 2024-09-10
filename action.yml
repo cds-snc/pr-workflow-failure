@@ -28,14 +28,14 @@ runs:
       uses: actions/github-script@v4
       with:
         script: |
-          const workflowNames = ${{ inputs.workflows }};
+          const workflowNames = JSON.parse('${{ inputs.workflows }}');
           const repo = context.repo.repo;
           const owner = context.repo.owner;
           const statuses = [];
           let failed = false;
 
           // Fetch all workflows
-          const workflows = await github.actions.listRepoWorkflows({
+          const workflows = await github.rest.actions.listRepoWorkflows({
             owner,
             repo
           });
@@ -53,7 +53,7 @@ runs:
 
           // Check the status of matched workflows
           for (const { id, name } of workflowIds) {
-            const runs = await github.actions.listWorkflowRuns({
+            const runs = await github.rest.actions.listWorkflowRuns({
               owner,
               repo,
               workflow_id: id,
@@ -66,18 +66,18 @@ runs:
             }
           }
 
-          core.setOutput('statuses', statuses.join('\n'));
-          core.setOutput('failed', failed);
+          core.exportVariable('STATUSES', statuses.join('\n'));
+          core.exportVariable('FAILED', failed);
         env:
           GITHUB_TOKEN: ${{ inputs.github_token }}
 
     - name: Create comment with workflow status
-      if: ${{ steps.check-status.outputs.failed == 'true' }}
+      if: ${{ env.FAILED == 'true' }}
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
       with:
         github-token: ${{ inputs.github_token }}
         script: |
-          const statuses = `\${{ steps.check-status.outputs.statuses }}`;
+          const statuses = process.env.STATUSES;
           github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -86,10 +86,10 @@ runs:
           });
 
     - name: Send Slack notification
-      if: ${{ steps.check-status.outputs.failed == 'true' && inputs.slack_webhook != '' }}
+      if: ${{ env.FAILED == 'true' && inputs.slack_webhook != '' }}
       env:
         SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook }}
-        STATUSES: ${{ steps.check-status.outputs.statuses }}
+        STATUSES: ${{ env.STATUSES }}
         PR_TITLE: ${{ github.event.pull_request.title }}
         REPO_NAME: ${{ github.repository }}
         PR_CREATOR: ${{ github.event.pull_request.user.login }}
