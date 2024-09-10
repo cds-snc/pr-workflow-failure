@@ -25,38 +25,51 @@ runs:
 
     - name: Check workflow status
       id: check-status
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
-      run: |
-        workflow_names=${{ inputs.workflows }}
-        statuses=""
-        failed=false
-        workflow_ids=()
+      uses: actions/github-script@v4
+      with:
+        script: |
+          const workflowNames = ${{ inputs.workflows }};
+          const repo = context.repo.repo;
+          const owner = context.repo.owner;
+          const statuses = [];
+          let failed = false;
 
-        # Get all workflows and match by name
-        all_workflows=$(gh api repos/${{ github.repository }}/actions/workflows --jq '.workflows')
-        for workflow_name in ${workflow_names[@]}; do
-          workflow_id=$(echo "$all_workflows" | jq -r --arg name "$workflow_name" '.[] | select(.name == $name) | .id')
-          if [ -n "$workflow_id" ]; then
-            workflow_ids+=($workflow_id)
-          else
-            statuses+="$workflow_name: Not found\n"
-          fi
-        done
+          // Fetch all workflows
+          const workflows = await github.actions.listRepoWorkflows({
+            owner,
+            repo
+          });
 
-        # Check the status of matched workflows
-        for workflow_id in ${workflow_ids[@]}; do
-          status=$(gh api repos/${{ github.repository }}/actions/workflows/$workflow_id/runs --jq '.workflow_runs[0].conclusion')
-          workflow_name=$(echo "$all_workflows" | jq -r --arg id "$workflow_id" '.[] | select(.id == ($id | tonumber)) | .name')
-          statuses+="$workflow_name: $status\n"
-          if [[ "$status" != "success" ]]; then
-            failed=true
-          fi
-        done
+          // Match workflows by name and get their IDs
+          const workflowIds = workflowNames.map(name => {
+            const workflow = workflows.data.workflows.find(w => w.name === name);
+            if (workflow) {
+              return { id: workflow.id, name: workflow.name };
+            } else {
+              statuses.push(`${name}: Not found`);
+              return null;
+            }
+          }).filter(Boolean);
 
-        echo "::set-output name=statuses::$statuses"
-        echo "::set-output name=failed::$failed"
-      shell: bash
+          // Check the status of matched workflows
+          for (const { id, name } of workflowIds) {
+            const runs = await github.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: id,
+              per_page: 1
+            });
+            const status = runs.data.workflow_runs.length > 0 ? runs.data.workflow_runs[0].conclusion : 'No runs found';
+            statuses.push(`${name}: ${status}`);
+            if (status !== 'success') {
+              failed = true;
+            }
+          }
+
+          core.setOutput('statuses', statuses.join('\n'));
+          core.setOutput('failed', failed);
+        env:
+          GITHUB_TOKEN: ${{ inputs.github_token }}
 
     - name: Create comment with workflow status
       if: ${{ steps.check-status.outputs.failed == 'true' }}
