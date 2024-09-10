@@ -62,7 +62,7 @@ runs:
       if: ${{ steps.check-status.outputs.failed == 'true' }}
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
       with:
-        # github-token: ${{ inputs.GITHUB_TOKEN }}
+        github-token: ${{ inputs.github_token }}
         script: |
           const statuses = `\${{ steps.check-status.outputs.statuses }}`;
           github.rest.issues.createComment({
@@ -81,7 +81,7 @@ runs:
         REPO_NAME: ${{ github.repository }}
         PR_CREATOR: ${{ github.event.pull_request.user.login }}
         PR_URL: ${{ github.event.pull_request.html_url }}
-        SLACK_MESSAGE: ${{ inputs.slack_message }}
+        SLACK_MESSAGE: ${{ inputs.slack_body }}
       shell: bash
       run: |
         message=$(echo "$SLACK_MESSAGE" | sed "s/\${statuses}/$STATUSES/" | sed "s/\${pr_title}/$PR_TITLE/" | sed "s/\${repo_name}/$REPO_NAME/" | sed "s/\${pr_creator}/$PR_CREATOR/" | sed "s/\${pr_url}/$PR_URL/")
