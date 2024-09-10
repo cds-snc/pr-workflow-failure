@@ -1,21 +1,21 @@
 name: PR Workflow Failure
-description: 'Check the status of specified workflows on PRs and comment the status. Optionally send a Slack notification.'
+description: "Check the status of specified workflows on PRs and comment the status. Optionally send a Slack notification."
 
 inputs:
   workflows:
-    description: 'List of workflows to check'
+    description: "List of workflows names to check"
     required: true
-    default: '[]'
+    default: "[]"
   slack_webhook:
-    description: 'Slack webhook URL'
+    description: "Slack webhook URL"
     required: false
   slack_body:
-    description: 'Slack message body with placeholders for statuses, pr_title, repo_name, pr_creator, pr_url'
+    description: "Slack message body with placeholders for statuses, pr_title, repo_name, pr_creator, pr_url"
     required: false
     default: 'Workflow statuses:\n$STATUSES\nPR Details:\n<$PR_URL|PR> - $PR_TITLE by $PR_CREATOR in $REPO_NAME.\n$PR_URL'
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Check out the repository
       uses: actions/checkout@v2
@@ -23,16 +23,32 @@ runs:
     - name: Check workflow status
       id: check-status
       run: |
-        workflows=${{ inputs.workflows }}
+        workflow_names=${{ inputs.workflows }}
         statuses=""
         failed=false
-        for workflow in ${workflows[@]}; do
-          status=$(gh api repos/${{ github.repository }}/actions/workflows/$workflow/runs --jq '.workflow_runs[0].conclusion')
-          statuses+="$workflow: $status\n"
+        workflow_ids=()
+
+        # Get all workflows and match by name
+        all_workflows=$(gh api repos/${{ github.repository }}/actions/workflows --jq '.workflows')
+        for workflow_name in ${workflow_names[@]}; do
+          workflow_id=$(echo "$all_workflows" | jq -r --arg name "$workflow_name" '.[] | select(.name == $name) | .id')
+          if [ -n "$workflow_id" ]; then
+            workflow_ids+=($workflow_id)
+          else
+            statuses+="$workflow_name: Not found\n"
+          fi
+        done
+
+        # Check the status of matched workflows
+        for workflow_id in ${workflow_ids[@]}; do
+          status=$(gh api repos/${{ github.repository }}/actions/workflows/$workflow_id/runs --jq '.workflow_runs[0].conclusion')
+          workflow_name=$(echo "$all_workflows" | jq -r --arg id "$workflow_id" '.[] | select(.id == ($id | tonumber)) | .name')
+          statuses+="$workflow_name: $status\n"
           if [[ "$status" != "success" ]]; then
             failed=true
           fi
         done
+
         echo "::set-output name=statuses::$statuses"
         echo "::set-output name=failed::$failed"
       shell: bash
@@ -41,19 +57,18 @@ runs:
       if: ${{ steps.check-status.outputs.failed == 'true' }}
       uses: actions/github-script@v4
       with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const statuses = `\${{ steps.check-status.outputs.statuses }}`;
           github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: context.issue.number,
-            body: `Workflow statuses:\n${statuses}`
+            body: `## Workflow statuses:\n${statuses}`
           });
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Send Slack notification
-      if: ${{ steps.check-status.outputs.failed == 'true' && inputs.slack_webhook != '' }} 
+      if: ${{ steps.check-status.outputs.failed == 'true' && inputs.slack_webhook != '' }}
       env:
         SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook }}
         STATUSES: ${{ steps.check-status.outputs.statuses }}
