@@ -1,0 +1,70 @@
+name: PR Workflow Failure
+description: 'Check the status of specified workflows on PRs and comment the status. Optionally send a Slack notification.'
+
+inputs:
+  workflows:
+    description: 'List of workflows to check'
+    required: true
+    default: '[]'
+  slack_webhook:
+    description: 'Slack webhook URL'
+    required: false
+  slack_body:
+    description: 'Slack message body with placeholders for statuses, pr_title, repo_name, pr_creator, pr_url'
+    required: false
+    default: 'Workflow statuses:\n$STATUSES\nPR Details:\n<$PR_URL|PR> - $PR_TITLE by $PR_CREATOR in $REPO_NAME.\n$PR_URL'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check out the repository
+      uses: actions/checkout@v2
+
+    - name: Check workflow status
+      id: check-status
+      run: |
+        workflows=${{ inputs.workflows }}
+        statuses=""
+        failed=false
+        for workflow in ${workflows[@]}; do
+          status=$(gh api repos/${{ github.repository }}/actions/workflows/$workflow/runs --jq '.workflow_runs[0].conclusion')
+          statuses+="$workflow: $status\n"
+          if [[ "$status" != "success" ]]; then
+            failed=true
+          fi
+        done
+        echo "::set-output name=statuses::$statuses"
+        echo "::set-output name=failed::$failed"
+      shell: bash
+
+    - name: Create comment with workflow status
+      if: ${{ steps.check-status.outputs.failed == 'true' }}
+      uses: actions/github-script@v4
+      with:
+        script: |
+          const statuses = `\${{ steps.check-status.outputs.statuses }}`;
+          github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: `Workflow statuses:\n${statuses}`
+          });
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Send Slack notification
+      if: ${{ steps.check-status.outputs.failed == 'true' && inputs.slack_webhook != '' }} 
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook }}
+        STATUSES: ${{ steps.check-status.outputs.statuses }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        REPO_NAME: ${{ github.repository }}
+        PR_CREATOR: ${{ github.event.pull_request.user.login }}
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        SLACK_MESSAGE: ${{ inputs.slack_message }}
+      shell: bash
+      run: |
+        message=$(echo "$SLACK_MESSAGE" | sed "s/\${statuses}/$STATUSES/" | sed "s/\${pr_title}/$PR_TITLE/" | sed "s/\${repo_name}/$REPO_NAME/" | sed "s/\${pr_creator}/$PR_CREATOR/" | sed "s/\${pr_url}/$PR_URL/")
+        curl -X POST -H 'Content-type: application/json' \
+        --data "{\"text\":\"$message\"}" \
+        $SLACK_WEBHOOK_URL
