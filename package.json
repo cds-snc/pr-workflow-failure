@@ -2,9 +2,9 @@
   "name": "pr-workflow-failure",
   "version": "1.0.0",
   "description": "Locally test the GH Action code",
-  "main": "test.js",
+  "main": "debug/main.js",
   "scripts": {
-    "test": "node test.js"
+    "test": "node debug/main.js"
   },
   "repository": {
     "type": "git",
