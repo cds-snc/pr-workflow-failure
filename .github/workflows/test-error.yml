@@ -1,0 +1,16 @@
+name: Test workflow with error
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Run tests
+      run: |
+        echo "Running tests..."
+        exit 1
