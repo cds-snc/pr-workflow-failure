@@ -35,3 +35,7 @@ jobs:
           slack_webhook: ${{ secrets.SLACK_WEBHOOK }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+## TODO
+
+Add more details on the usage
