@@ -1,0 +1,30 @@
+{
+  "name": "pr-workflow-failure",
+  "version": "1.0.0",
+  "description": "Locally test the GH Action code",
+  "main": "test.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cds-snc/pr-workflow-failure.git"
+  },
+  "keywords": [
+    "github",
+    "pull",
+    "failure",
+    "workflow"
+  ],
+  "author": "CDS-SNC",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cds-snc/pr-workflow-failure/issues"
+  },
+  "homepage": "https://github.com/cds-snc/pr-workflow-failure#readme",
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@octokit/auth-app": "^7.1.1",
+    "@octokit/rest": "^21.0.2"
+  }
+}
