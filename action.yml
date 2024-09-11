@@ -29,9 +29,9 @@ runs:
       with:
         github-token: ${{ inputs.github_token }}
         script: |
+          const { repo, owner } = context.repo;
           const workflowNames = JSON.parse('${{ inputs.workflows }}');
-          const repo = context.repo.repo;
-          const owner = context.repo.owner;
+          
           const statuses = [];
           let failed = false;
 
