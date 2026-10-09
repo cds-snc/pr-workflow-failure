@@ -1,5 +1,5 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22@sha256:d09635f31d8a29c1040fc99e1edc0ce5da16334aefdfd31cbbebf4ac90bf5b83",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
