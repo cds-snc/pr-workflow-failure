@@ -126,7 +126,13 @@ runs:
         SLACK_MESSAGE: ${{ inputs.slack_body }}
       shell: bash
       run: |
-        message=$(echo "$SLACK_MESSAGE" | sed "s/\${statuses}/$STATUSES/" | sed "s/\${pr_title}/$PR_TITLE/" | sed "s/\${repo_name}/$REPO_NAME/" | sed "s/\${pr_creator}/$PR_CREATOR/" | sed "s/\${pr_url}/$PR_URL/")
+        message="$SLACK_MESSAGE"
+        message="${message//'${statuses}'/"$STATUSES"}"
+        message="${message//'${pr_title}'/"$PR_TITLE"}"
+        message="${message//'${repo_name}'/"$REPO_NAME"}"
+        message="${message//'${pr_creator}'/"$PR_CREATOR"}"
+        message="${message//'${pr_url}'/"$PR_URL"}"
+        jq -n --arg text "$message" '{text: $text}' | \
         curl -X POST -H 'Content-type: application/json' \
-        --data "{\"text\":\"$message\"}" \
-        $SLACK_WEBHOOK_URL
+        --data @- \
+        "$SLACK_WEBHOOK_URL"
